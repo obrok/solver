@@ -43,11 +43,11 @@ __global__ void fillInside(matrix* insideMatrices, int size){
 	
 	if (myRow == 0 || myRow == size-1){
 		myMatrix->ul[myRow*size+myRow] = 0.5;
-		myMatrix->ub[myRow] = 10.0/size*(idx()/(2*size)+1);
+		myMatrix->ub[myRow] = 10.0/(size-1)*(idx()/(2*size)+1);
 	}else if (myRow == size || myRow == 2*size-1){
 		myRow -= size;
 		myMatrix->lr[myRow*size+myRow] = 0.5;
-		myMatrix->lb[myRow] = 10.0/size*(idx()/(2*size)+2);
+		myMatrix->lb[myRow] = 10.0/(size-1)*(idx()/(2*size)+2);
 	}else if(myRow < size){
 		myMatrix->ul[myRow*size+myRow] = -2.0;
 		myMatrix->ul[myRow*size+myRow-1] = (float)1/2;
@@ -72,12 +72,12 @@ __global__ void fillLeft(matrix* leftMatrix, int size){
 	else if(myRow == size || myRow == 2*size-1){
 		myRow -= size;
 		leftMatrix->lr[myRow*size+myRow] = 0.5;
-		leftMatrix->lb[myRow] = 10.0/size;
+		leftMatrix->lb[myRow] = 10.0/(size-1);
 	}else{
 		myRow -= size;
 		leftMatrix->lr[myRow*size+myRow] = -2.0;
-		leftMatrix->lr[myRow*size+myRow-1] = (float)1/2;
-		leftMatrix->lr[myRow*size+myRow+1] = (float)1/2;
+		leftMatrix->lr[myRow*size+myRow-1] = 0.5;
+		leftMatrix->lr[myRow*size+myRow+1] = 0.5;
 		leftMatrix->ll[myRow*size+myRow] = 1;
 	}
 }
@@ -92,11 +92,11 @@ __global__ void fillRight(matrix* rightMatrix, int size){
 	}
 	else if(myRow == 0 || myRow == size-1){
 		rightMatrix->ul[myRow*size+myRow] = 0.5;
-		rightMatrix->ub[myRow] = 10.0/size*(size-1);
+		rightMatrix->ub[myRow] = 10.0/(size-1)*(size-2);
 	}else{
 		rightMatrix->ul[myRow*size+myRow] = -2.0;
-		rightMatrix->ul[myRow*size+myRow-1] = (float)1/2;
-		rightMatrix->ul[myRow*size+myRow+1] = (float)1/2;
+		rightMatrix->ul[myRow*size+myRow-1] = 0.5;
+		rightMatrix->ul[myRow*size+myRow+1] = 0.5;
 		rightMatrix->ur[myRow*size+myRow] = 1;
 	}
 }
@@ -315,7 +315,7 @@ void printFloatArray(float *M, int size) {
 	int i,j;
 	for(i = 0; i < size; i++){
 		for(j = 0; j < size; j++) {
-			printf("%f ", M[i*size + j]);
+			printf("% .2f ", M[i*size + j]);
 		}
 		printf("\n");
 	}
@@ -334,6 +334,6 @@ void printDeviceVector(float* dVec, int len){
 void printHostVector(float* V, int len) {
 	int i;
 	for(i = 0; i < len; i++)
-		printf("%f ", V[i]);
+		printf("% .02f ", V[i]);
 	printf("\n\n");
 }

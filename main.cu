@@ -11,25 +11,27 @@ void solve(matrix* matrices, int n, int size);
 int main(){
 	int size = 16;
 	int log = 4;
+	int matrix_no = size;
+	size += 1;
 	
 	matrix** matrices = (matrix**)malloc(sizeof(matrix*)*(log + 1));
 	float** data = (float**)malloc(sizeof(float*)*(log + 1));
 
-	cudaMalloc((void**)&(matrices[0]), sizeof(matrix)*size);
-	cudaMalloc((void**)&(data[0]), size*sizeof(float)*matrix_size(size));
+	cudaMalloc((void**)&(matrices[0]), sizeof(matrix)*matrix_no);
+	cudaMalloc((void**)&(data[0]), matrix_no*sizeof(float)*matrix_size(size));
 	cudaThreadSynchronize();
 	
-	init_matrices<<<size, 1>>>(matrices[0], data[0], size);
+	init_matrices<<<matrix_no, 1>>>(matrices[0], data[0], size);
 	cudaThreadSynchronize();
 	
-	fillInside<<<2*size,(size-2)>>>(matrices[0]+1, size);
+	fillInside<<<2*size,(matrix_no-2)>>>(matrices[0]+1, size);
 	fillLeft<<<2, size>>>(matrices[0],  size);
-	fillRight<<<2, size>>>(matrices[0]+size-1,  size);
+	fillRight<<<2, size>>>(matrices[0]+matrix_no-1,  size);
 	cudaThreadSynchronize();
 		
 	int i,j;
 	int n ;		
-	for(i = 0,n=size; i < log; i++,n/=2){		
+	for(i = 0,n=matrix_no; i < log; i++,n/=2){		
 		cudaMalloc((void**)&matrices[i+1], sizeof(matrix)*n/2);
 		cudaMalloc((void**)&data[i+1], sizeof(float)*matrix_size(size)*n/2);
 		cudaThreadSynchronize();
@@ -54,15 +56,20 @@ int main(){
 	}
 	
 	float* results;
-	cudaMalloc((void**)&results, sizeof(float)*size*(size+1));
+	cudaMalloc((void**)&results, sizeof(float)*matrix_no*size);
 	cudaThreadSynchronize();
-	extractResults<<<1, size/2>>>(matrices[0], results, size);
-	cudaThreadSynchronize();
+	extractResults<<<1, matrix_no/2>>>(matrices[0], results, size);
+	cudaThreadSynchronize();	
 
-	for(int i = 0; i < size; i++)
-		printDeviceMatrix(matrices[0]+i, size);
+	printDeviceVector(results, size*size);
 	
-	printDeviceVector(results, size*(size+1));
+	for(int i =0; i < log+1; i++)
+	{
+		cudaFree(data[i]);
+		cudaFree(matrices[i]);
+	}
+	cudaThreadSynchronize();
+	
 	
 	return 0;
 }
