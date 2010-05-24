@@ -69,11 +69,11 @@ __global__ void fillInside(matrix* insideMatrices, float E1, float E2, int size)
 	
 	if (myRow == 0 || myRow == size-1){
 		myMatrix->ul[myRow*size+myRow] = 0.5;
-		myMatrix->ub[myRow] = 10.0/size*(idx()/(2*size)+1);
+		myMatrix->ub[myRow] = 10.0/(size-1)*(idx()/(2*size)+1);
 	}else if (myRow == size || myRow == 2*size-1){
 		myRow -= size;
 		myMatrix->lr[myRow*size+myRow] = 0.5;
-		myMatrix->lb[myRow] = 10.0/size*(idx()/(2*size)+2);
+		myMatrix->lb[myRow] = 10.0/(size-1)*(idx()/(2*size)+2);
 	}else if(myRow < size){
 		myMatrix->ul[myRow*size+myRow] = -2.0;
 		myMatrix->ul[myRow*size+myRow-1] = (float)1/2;
@@ -110,11 +110,11 @@ __global__ void fillLeft(matrix* leftMatrix, float E, int size){
 	leftMatrix->lb[myRow] = right;
 }
 
-__global__ void fillRight(matrix* rightMatrix, int size){
+__global__ void fillRight(matrix* rightMatrix, float E, int size){
 	int myRow = idx()%size;
 	
-	leftMatrix->lr[myRow*size+myRow] = 1;
-	leftMatrix->lb[myRow] = 0;
+	rightMatrix->lr[myRow*size+myRow] = 1;
+	rightMatrix->lb[myRow] = 0;
 
 	float a = 0;
 	float right = 0;
@@ -126,10 +126,10 @@ __global__ void fillRight(matrix* rightMatrix, int size){
 		}
 
 	//No boundary condition so these are not connected to the last row, which is just throwaway
-	leftMatrix->ul[myRow*size + myRow] = a/2;
-	if (myRow >= 2) leftMatrix->ul[myRow*size+myRow-2] = a/2;
-	if (myRow < size-2) leftMatrix->ul[myRow*size+myRow+2] = a/2;
-	leftMatrix->lb[myRow] = right;
+	rightMatrix->ul[myRow*size + myRow] = a/2;
+	if (myRow >= 2) rightMatrix->ul[myRow*size+myRow-2] = a/2;
+	if (myRow < size-2) rightMatrix->ul[myRow*size+myRow+2] = a/2;
+	rightMatrix->lb[myRow] = right;
 }
 
 __global__ void copyUpperLeft(matrix* A, matrix* C){
@@ -346,7 +346,7 @@ void printFloatArray(float *M, int size) {
 	int i,j;
 	for(i = 0; i < size; i++){
 		for(j = 0; j < size; j++) {
-			printf("% .2f ", M[i*size + j]);
+			printf("% .02f ", M[i*size + j]);
 		}
 		printf("\n");
 	}
@@ -365,6 +365,6 @@ void printDeviceVector(float* dVec, int len){
 void printHostVector(float* V, int len) {
 	int i;
 	for(i = 0; i < len; i++)
-		printf("% .2f ", V[i]);
+		printf("% .02f ", V[i]);
 	printf("\n\n");
 }
