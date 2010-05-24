@@ -9,8 +9,10 @@ void reduce(matrix* oldMatrices, int n, matrix* newMatrices, int size);
 void solve(matrix* matrices, int n, int size);
 
 int main(){
-	int size = 16;
-	int log = 4;
+	int size = 8;
+	int log = 3;
+	float E1 = 1;
+	float E2 = 2;
 	
 	matrix** matrices = (matrix**)malloc(sizeof(matrix*)*(log + 1));
 	float** data = (float**)malloc(sizeof(float*)*(log + 1));
@@ -22,10 +24,10 @@ int main(){
 	init_matrices<<<size, 1>>>(matrices[0], data[0], size);
 	cudaThreadSynchronize();
 	
-	fillInside<<<2*size,(size-2)>>>(matrices[0]+1, size);
-	fillLeft<<<2, size>>>(matrices[0],  size);
-	fillRight<<<2, size>>>(matrices[0]+size-1,  size);
+	fillLeft<<<1, size>>>(matrices[0],  E1, size);
 	cudaThreadSynchronize();
+		
+	printDeviceMatrix(matrices[0], size);
 		
 	int i,j;
 	int n ;		
@@ -59,10 +61,10 @@ int main(){
 	extractResults<<<1, size/2>>>(matrices[0], results, size);
 	cudaThreadSynchronize();
 
-	for(int i = 0; i < size; i++)
-		printDeviceMatrix(matrices[0]+i, size);
+	//for(int i = 0; i < size; i++)
+	//	printDeviceMatrix(matrices[0]+i, size);
 	
-	printDeviceVector(results, size*(size+1));
+	//printDeviceVector(results, size*(size+1));
 	
 	return 0;
 }
