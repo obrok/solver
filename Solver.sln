@@ -1,0 +1,26 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Solver", "Solver.vcproj", "{D3C8B137-20F4-401F-A50B-5C8C58F2BC27}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		EmuDebug|Win32 = EmuDebug|Win32
+		EmuRelease|Win32 = EmuRelease|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D3C8B137-20F4-401F-A50B-5C8C58F2BC27}.Debug|Win32.ActiveCfg = Debug|Win32
+		{D3C8B137-20F4-401F-A50B-5C8C58F2BC27}.Debug|Win32.Build.0 = Debug|Win32
+		{D3C8B137-20F4-401F-A50B-5C8C58F2BC27}.EmuDebug|Win32.ActiveCfg = EmuDebug|Win32
+		{D3C8B137-20F4-401F-A50B-5C8C58F2BC27}.EmuDebug|Win32.Build.0 = EmuDebug|Win32
+		{D3C8B137-20F4-401F-A50B-5C8C58F2BC27}.EmuRelease|Win32.ActiveCfg = EmuRelease|Win32
+		{D3C8B137-20F4-401F-A50B-5C8C58F2BC27}.EmuRelease|Win32.Build.0 = EmuRelease|Win32
+		{D3C8B137-20F4-401F-A50B-5C8C58F2BC27}.Release|Win32.ActiveCfg = Release|Win32
+		{D3C8B137-20F4-401F-A50B-5C8C58F2BC27}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

@@ -6,3 +6,8 @@
 *.obj
 *.linkinfo
 *.bat
+*.pdb
+*.ncb
+*.suo
+Solver.vcproj.*
+debug
