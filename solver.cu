@@ -37,10 +37,26 @@ __global__ void init_vector(float* vec, int size){
 		vec[i] = 0;
 }
 
-__device__ inline float get_e(int i)
+__device__ inline float get_derivative(int func_no, int el_no, int direction, int size)
 {
-	if(i == 0 || i == 1) return 1;
-	else return 2;
+	int location = func_no/2 - el_no;
+	if(direction == 0)
+		if (location & 1)
+			return 1;
+		else
+			return -1;
+	else
+		if (location < size)
+			return 1;
+		else
+			return -1;
+}
+
+__device__ inline float get_e(int func_no, int i, int size)
+{
+	if(i == 2) return 1;
+	if(func_no & 1) return i == 1;
+	return i == 0;
 }
 
 __device__ inline float get_D(int i, int j, float E)
@@ -55,6 +71,27 @@ __device__ inline float get_D(int i, int j, float E)
 	else return lambda;
 }
 
+__device__ inline float get_intersection_size(int i, int j, int size)
+{
+	//There is actually half as many nodes as size
+	//becaus half of them represent the second part
+	//of the same node
+	float base = 4.0/((size-1)*(size-1));
+	if(i > j)
+	{
+		int temp = j;
+		j = i;
+		i = temp;
+	}
+	//The first function of a pair is i
+	if(j == i || j == i+1) return base;
+	if(j == i+2 || j ==  i+3 || j == i-1 || j == i-2) return base/4;
+	if(i & 1 && j == i - 1 + size) return base/2;
+	if(j == i + size) return base/2;
+	if(j & 1 && j == i + 1 + size) return base/2;
+	return 0;
+}
+
 __device__ inline float get_alpha(int i)
 {
 	float base = -0.06115;
@@ -63,30 +100,25 @@ __device__ inline float get_alpha(int i)
 	return 2*base;
 }
 
-__global__ void fillInside(matrix* insideMatrices, float E1, float E2, int size){
-	matrix* myMatrix = insideMatrices+(idx()/(2*size));
-	int myRow = idx()%(2*size);
-	
-	if (myRow == 0 || myRow == size-1){
-		myMatrix->ul[myRow*size+myRow] = 0.5;
-		myMatrix->ub[myRow] = 10.0/(size-1)*(idx()/(2*size)+1);
-	}else if (myRow == size || myRow == 2*size-1){
-		myRow -= size;
-		myMatrix->lr[myRow*size+myRow] = 0.5;
-		myMatrix->lb[myRow] = 10.0/(size-1)*(idx()/(2*size)+2);
-	}else if(myRow < size){
-		myMatrix->ul[myRow*size+myRow] = -2.0;
-		myMatrix->ul[myRow*size+myRow-1] = (float)1/2;
-		myMatrix->ul[myRow*size+myRow+1] = (float)1/2;
-		myMatrix->ur[myRow*size+myRow] = 1;
-	}else{
-		myRow -= size;
-		myMatrix->lr[myRow*size+myRow] = -2.0;
-		myMatrix->lr[myRow*size+myRow-1] = (float)1/2;
-		myMatrix->lr[myRow*size+myRow+1] = (float)1/2;
-		myMatrix->ll[myRow*size+myRow] = 1;
-	}
+__device__ inline float a(int u, int v, float E, int size)
+{
+	float temp = 0;
+	for(int i =0;i < 3; i++)
+		for(int j = 0; j < 3; j++)
+			temp += get_e(u, i)*get_D(i,j,E)*get_e(v,j);
+	return temp;
 }
+
+__device__ inline float A(int v, float E, int size)
+{
+	float temp = 0;
+	for(int i =0;i < 3; i++)
+		for(int j = 0; j < 3; j++)
+			temp += get_e(v, i)*get_D(i,j,E)*get_alpha(j);
+	//Integrating over two adjacent square elements
+	return temp;
+}
+
 
 __global__ void fillLeft(matrix* leftMatrix, float E, int size){
 	int myRow = idx()%size;
@@ -94,42 +126,60 @@ __global__ void fillLeft(matrix* leftMatrix, float E, int size){
 	leftMatrix->ul[myRow*size+myRow] = 1;
 	leftMatrix->ub[myRow] = 0;
 
-	float a = 0;
-	float right = 0;
-	for(int i = 0; i < 3; i++)
-		for(int j = 0; j < 3; j++)
-		{
-			a += get_e(i)*get_e(j)*get_D(i,j,E);
-			right += get_e(i)*get_D(i,j,E)*get_alpha(j);
-		}
-
-	leftMatrix->ll[myRow*size + myRow] = a;
-	leftMatrix->lr[myRow*size + myRow] = a/2;
-	if (myRow >= 2) leftMatrix->lr[myRow*size+myRow-2] = a/2;
-	if (myRow < size-2) leftMatrix->lr[myRow*size+myRow+2] = a/2;
-	leftMatrix->lb[myRow] = right;
+	int v = myRow;
+	
+	for(int u = 0; u < size; u++)
+		leftMatrix->ll[myRow*size+u] = a(u, v+size, E, size);
+	for(int u = size; u < size*2; u++)
+		leftMatrix->lr[myRow*size+u-size] = a(u, v+size, E, size);
+	leftMatrix->lb[myRow] = A(v, E, size);
 }
 
-__global__ void fillRight(matrix* rightMatrix, float E, int size){
-	int myRow = idx()%size;
+__global__ void fillInside(matrix* matrix, float E1, float E2, int size, int matrix_no){
+	int myMatrixNo = idx()%(matrix_no-1);
+	matrix += myMatrixNo;
+	int myRow = idx()/(matrix_no-1);
+	bool condition = myRow >= size/2 && myMatrixNo <= matrix_no/2 && myMatrixNo >= matrix_no/4;
+	float E = condition*E2 + (!condition)*E1;
+
+	int v = myRow;
 	
-	rightMatrix->lr[myRow*size+myRow] = 1;
-	rightMatrix->lb[myRow] = 0;
-
-	float a = 0;
-	float right = 0;
-	for(int i = 0; i < 3; i++)
-		for(int j = 0; j < 3; j++)
+	//Do something special if we're on the boundary
+	//i.e. if our v function is sitting squarely on it
+	if(v == size/2 || v == size/2+1 && condition)
+	{
+		for(int u = 0; u < size; u++)
 		{
-			a += get_e(i)*get_e(j)*get_D(i,j,E);
-			right += get_e(i)*get_D(i,j,E)*get_alpha(j);
+			matrix->ul[myRow*size+u] = a(u, v, E1, size);
+			matrix->ll[myRow*size+u] = a(u, v+size, E1, size);
 		}
+		for(int u = size; u < size+2; u++)
+		{
+			matrix->ur[myRow*size+u-size] = 0.5*a(u,v,E1,size) + 0.5*a(u,v,E2,size);
+			matrix->ul[myRow*size+u-size] = 0.5*a(u,v+size,E1,size) + 0.5*a(u,v+size,E2,size);
+		}
+		for(int u = size+2; u  < size*2; u++)
+		{
+			matrix->ur[myRow*size+u-size] = a(u, v, E2, size);
+			matrix->lr[myRow*size+u-size] = a(u, v+size, E2, size);
+		}
+	}
+	else
+	{
+		for(int u = 0; u < size; u++)
+		{
+			matrix->ul[myRow*size+u] = a(u, v, E, size);
+			matrix->ll[myRow*size+u] = a(u, v+size, E, size);
+		}
+		for(int u = size; u  < size*2; u++)
+		{
+			matrix->ur[myRow*size+u-size] = a(u, v, E, size);
+			matrix->lr[myRow*size+u-size] = a(u, v+size, E, size);
+		}
+	}
 
-	//No boundary condition so these are not connected to the last row, which is just throwaway
-	rightMatrix->ul[myRow*size + myRow] = a/2;
-	if (myRow >= 2) rightMatrix->ul[myRow*size+myRow-2] = a/2;
-	if (myRow < size-2) rightMatrix->ul[myRow*size+myRow+2] = a/2;
-	rightMatrix->lb[myRow] = right;
+	matrix->ub[myRow] = A(v, E, size);
+	matrix->lb[myRow] = A(v+size, E, size);
 }
 
 __global__ void copyUpperLeft(matrix* A, matrix* C){
