@@ -10,4 +10,4 @@
 *.ncb
 *.suo
 Solver.vcproj.*
-debug
+Debug
