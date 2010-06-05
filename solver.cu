@@ -39,24 +39,26 @@ __global__ void init_vector(float* vec, int size){
 
 __device__ inline float get_derivative(int func_no, int el_no, int direction, int size)
 {
-	int location = func_no/2 - el_no;
+	int location = func_no/2;
 	if(direction == 0)
-		if (location & 1)
+		if (location == el_no + 1 || location == el_no + size/2 + 1)
 			return 1;
 		else
 			return -1;
 	else
-		if (location < size)
-			return 1;
-		else
+		if (location < size/2)
 			return -1;
+		else
+			return 1;
 }
 
-__device__ inline float get_e(int func_no, int i, int size)
+__device__ inline float get_e(int func_no, int el_no, int i, int size)
 {
-	if(i == 2) return 1;
-	if(func_no & 1) return i == 1;
-	return i == 0;
+	float dx = get_derivative(func_no, el_no, 0, size);
+	float dy = get_derivative(func_no, el_no, 1, size);
+	if(i == 0) return dx * !(func_no & 1);
+	if(i == 1) return dy * (func_no & 1);
+	return dx * (func_no & 1) + dy * !(func_no & 1);
 }
 
 __device__ inline float get_D(int i, int j, float E)
@@ -71,27 +73,6 @@ __device__ inline float get_D(int i, int j, float E)
 	else return lambda;
 }
 
-__device__ inline float get_intersection_size(int i, int j, int size)
-{
-	//There is actually half as many nodes as size
-	//becaus half of them represent the second part
-	//of the same node
-	float base = 4.0/((size-1)*(size-1));
-	if(i > j)
-	{
-		int temp = j;
-		j = i;
-		i = temp;
-	}
-	//The first function of a pair is i
-	if(j == i || j == i+1) return base;
-	if(j == i+2 || j ==  i+3 || j == i-1 || j == i-2) return base/4;
-	if(i & 1 && j == i - 1 + size) return base/2;
-	if(j == i + size) return base/2;
-	if(j & 1 && j == i + 1 + size) return base/2;
-	return 0;
-}
-
 __device__ inline float get_alpha(int i)
 {
 	float base = -0.06115;
@@ -100,43 +81,51 @@ __device__ inline float get_alpha(int i)
 	return 2*base;
 }
 
-__device__ inline float a(int u, int v, float E, int size)
+__device__ inline float a(int u, int v, int el_no, float E, int size)
 {
 	float temp = 0;
-	for(int i =0;i < 3; i++)
+	for(int i = 0; i < 3; i++)
 		for(int j = 0; j < 3; j++)
-			temp += get_e(u, i)*get_D(i,j,E)*get_e(v,j);
+			temp += get_e(u, el_no, i, size)*get_D(i,j,E)*get_e(v, el_no, j, size);
 	return temp;
 }
 
-__device__ inline float A(int v, float E, int size)
+__device__ inline float A(int v, int el_no, float E, int size)
 {
 	float temp = 0;
-	for(int i =0;i < 3; i++)
+	for(int i = 0; i < 3; i++)
 		for(int j = 0; j < 3; j++)
-			temp += get_e(v, i)*get_D(i,j,E)*get_alpha(j);
-	//Integrating over two adjacent square elements
+			temp += get_e(v, el_no, i, size)*get_D(i,j,E)*get_alpha(j);
 	return temp;
 }
 
 
 __global__ void fillLeft(matrix* leftMatrix, float E, int size){
+	// Need solve top!!1
 	int myRow = idx()%size;
 	
 	leftMatrix->ul[myRow*size+myRow] = 1;
 	leftMatrix->ub[myRow] = 0;
 
 	int v = myRow;
+	int v_loc = v/2;
 	
-	for(int u = 0; u < size; u++)
-		leftMatrix->ll[myRow*size+u] = a(u, v+size, E, size);
-	for(int u = size; u < size*2; u++)
-		leftMatrix->lr[myRow*size+u-size] = a(u, v+size, E, size);
-	leftMatrix->lb[myRow] = A(v, E, size);
+	for(int el_no = v_loc - 1; el_no <= v_loc; el_no++)
+	{
+		if(el_no >= 0 && el_no < size/2 - 1)
+		{
+			for(int u = el_no*2; u < el_no*2+4 && u < size; u++)
+			{
+				leftMatrix->ll[myRow*size+u] += a(u, v+size, el_no, E, size);
+				leftMatrix->lr[myRow*size+u] += a(u+size, v+size, el_no, E, size);
+			}
+			leftMatrix->lb[myRow] += A(v, el_no, E, size);
+		}
+	}
 }
 
 __global__ void fillInside(matrix* matrix, float E1, float E2, int size, int matrix_no){
-	int myMatrixNo = idx()%(matrix_no-1);
+	/*int myMatrixNo = idx()%(matrix_no-1);
 	matrix += myMatrixNo;
 	int myRow = idx()/(matrix_no-1);
 	bool condition = myRow >= size/2 && myMatrixNo <= matrix_no/2 && myMatrixNo >= matrix_no/4;
@@ -179,7 +168,7 @@ __global__ void fillInside(matrix* matrix, float E1, float E2, int size, int mat
 	}
 
 	matrix->ub[myRow] = A(v, E, size);
-	matrix->lb[myRow] = A(v+size, E, size);
+	matrix->lb[myRow] = A(v+size, E, size);*/
 }
 
 __global__ void copyUpperLeft(matrix* A, matrix* C){

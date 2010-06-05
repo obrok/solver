@@ -9,8 +9,8 @@ void reduce(matrix* oldMatrices, int n, matrix* newMatrices, int size);
 void solve(matrix* matrices, int n, int size);
 
 int main(){
-	int size = 16;
-	int log = 4;
+	int size = 4;
+	int log = 2;
 	float E1 = 1;
 	float E2 = 1;
 	int matrix_no = size;
@@ -30,8 +30,7 @@ int main(){
 	fillInside<<<matrix_no-1, size>>>(matrices[0]+1, E1, E2, size, matrix_no);
 	cudaThreadSynchronize();
 
-	for(int i =0; i < matrix_no; i++)
-		printDeviceMatrix(matrices[0]+i, size);
+		printDeviceMatrix(matrices[0], size);
 		
 	int i,j;
 	int n ;		
