@@ -31,6 +31,7 @@ int main(){
 	cudaThreadSynchronize();
 
 		printDeviceMatrix(matrices[0], size);
+		printDeviceMatrix(matrices[0]+1, size);
 		
 	int i,j;
 	int n ;		
@@ -44,6 +45,8 @@ int main(){
 			
 		reduce(matrices[i], n, matrices[i+1], size);
 	}
+	
+	printDeviceMatrix(matrices[log], size);
 		
 	for(i = log-1,n=2; i >= 0; i--,n*=2){
 		solve(matrices[i], n, size);
