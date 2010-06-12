@@ -1,9 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
 #include "solver.h"
-
-void printMatrix(matrix* m, int size);
 
 float get(matrix* m, int x, int y, int size) {
 	if (x == 2*size && y < size)
@@ -47,8 +42,6 @@ void gauss(matrix* m, int size) {
 		}
 	}
 	
-	printMatrix(m, size);
-	
 	for(int i = size*2 - 1; i >= 0; i--) {
 		set(m, 2*size, i, size, get(m, 2*size, i,size) / get(m, i, i, size));
 		set(m, i, i, size, 1.0f);
@@ -57,45 +50,4 @@ void gauss(matrix* m, int size) {
 			set(m, i, j, size, 0.0f);
 		}
 	}
-}
-
-matrix* createMatrix(int size){
-	matrix* temp = (matrix*)malloc(sizeof(matrix));
-	float* temp_data = (float*)malloc(matrix_size(size) * sizeof(float));
-	
-	temp->ur = temp_data;
-	temp->ul = temp->ur + size*size;
-	temp->lr = temp->ul + size*size;
-	temp->ll = temp->lr + size*size;
-	temp->ub = temp->ll + size*size;
-	temp->lb = temp->ub + size;
-
-	return temp;
-}
-
-void printMatrix(matrix* m, int size) {
-	for(int y = 0; y < size*2; y++) {
-		for(int x = 0; x < size*2 + 1; x++)
-			printf("%f ", get(m, x, y, size));
-		printf("\n");
-	}
-	printf("\n");
-}
-
-void setMatrix(matrix* m, int size) {
-	srand(27);
-	for(int y = 0; y < size*2; y++) 
-		for(int x = 0; x < size*2 + 1; x++)
-			set(m, x, y, size, rand() % 100);
-		
-}
-
-int main(char** args) {
-	int size = 2;
-	matrix* m = createMatrix(size);
-	setMatrix(m, size);
-	printMatrix(m, size);
-	
-	gauss(m, size);
-	printMatrix(m, size);
 }
