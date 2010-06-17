@@ -8,3 +8,6 @@ main.obj: main.cu solver.h
 
 solver.obj: solver.cu solver.h
 	nvcc -c -O2 solver.cu
+
+gauss.obj: gauss.cu
+	nvcc -c -O2 gauss.cu

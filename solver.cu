@@ -135,9 +135,9 @@ __global__ void fillLeft(matrix* leftMatrix, float E, int size){
 }
 
 __global__ void fillInside(matrix* matrix, float E1, float E2, int size, int matrix_no){
-	// Need solve top!!1
 	matrix += idx()/size;
 	int myRow = idx()%size;
+	
 	
 	int v = myRow;
 	int v_loc = v/2;
