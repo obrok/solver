@@ -29,8 +29,6 @@ int main(){
 	fillLeft<<<1, size>>>(matrices[0],  E1, size);
 	fillInside<<<matrix_no-1, size>>>(matrices[0]+1, E1, E2, size, matrix_no);
 	cudaThreadSynchronize();
-
-		printDeviceMatrix(matrices[0], size);
 		
 	int i,j;
 	int n ;		
@@ -42,7 +40,7 @@ int main(){
 		init_matrices<<<n/2, 1>>>(matrices[i+1], data[i + 1], size);
 		cudaThreadSynchronize();
 			
-		reduce(matrices[i], n, matrices[i+1], size);
+		reduce(matrices[i], n, matrices[i+1], size);			
 	}
 		
 	for(i = log-1,n=2; i >= 0; i--,n*=2){
@@ -55,7 +53,7 @@ int main(){
 				copyBLower<<<1, size>>>(matrices[i]+j+1, matrices[i-1]+j*2+3);								
 			}
 		
-		cudaThreadSynchronize();		
+		cudaThreadSynchronize();
 	}
 	
 	float* results;

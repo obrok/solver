@@ -42,14 +42,14 @@ __device__ inline float get_derivative(int func_no, int el_no, int direction, in
 	int location = func_no/2;
 	if(direction == 0)
 		if (location == el_no + 1 || location == el_no + size/2 + 1)
-			return 1;
+			return 0.5;
 		else
-			return -1;
+			return -0.5;
 	else
 		if (location < size/2)
-			return -1;
+			return -0.5;
 		else
-			return 1;
+			return 0.5;
 }
 
 __device__ inline float get_e(int func_no, int el_no, int i, int size)
@@ -99,6 +99,16 @@ __device__ inline float A(int v, int el_no, float E, int size)
 	return temp;
 }
 
+__device__ inline float E(float E1, float E2, int row, int col, int size)
+{
+	if (((float)row)/size >= 0.5 &&
+	    ((float)col)/size >= 0.25 &&
+		((float)col)/size <= 0.5)
+		return E2;
+	else
+		return E1;
+}
+
 
 __global__ void fillLeft(matrix* leftMatrix, float E, int size){
 	// Need solve top!!1
@@ -119,56 +129,37 @@ __global__ void fillLeft(matrix* leftMatrix, float E, int size){
 				leftMatrix->ll[myRow*size+u] += a(u, v+size, el_no, E, size);
 				leftMatrix->lr[myRow*size+u] += a(u+size, v+size, el_no, E, size);
 			}
-			leftMatrix->lb[myRow] += A(v, el_no, E, size);
+			leftMatrix->lb[myRow] += A(v+size, el_no, E, size);
 		}
 	}
 }
 
 __global__ void fillInside(matrix* matrix, float E1, float E2, int size, int matrix_no){
-	/*int myMatrixNo = idx()%(matrix_no-1);
-	matrix += myMatrixNo;
-	int myRow = idx()/(matrix_no-1);
-	bool condition = myRow >= size/2 && myMatrixNo <= matrix_no/2 && myMatrixNo >= matrix_no/4;
-	float E = condition*E2 + (!condition)*E1;
-
-	int v = myRow;
+	// Need solve top!!1
+	matrix += idx()/size;
+	int myRow = idx()%size;
 	
-	//Do something special if we're on the boundary
-	//i.e. if our v function is sitting squarely on it
-	if(v == size/2 || v == size/2+1 && condition)
+	int v = myRow;
+	int v_loc = v/2;
+	
+	for(int el_no = v_loc - 1; el_no <= v_loc; el_no++)
 	{
-		for(int u = 0; u < size; u++)
+		if(el_no >= 0 && el_no < size/2 - 1)
 		{
-			matrix->ul[myRow*size+u] = a(u, v, E1, size);
-			matrix->ll[myRow*size+u] = a(u, v+size, E1, size);
-		}
-		for(int u = size; u < size+2; u++)
-		{
-			matrix->ur[myRow*size+u-size] = 0.5*a(u,v,E1,size) + 0.5*a(u,v,E2,size);
-			matrix->ul[myRow*size+u-size] = 0.5*a(u,v+size,E1,size) + 0.5*a(u,v+size,E2,size);
-		}
-		for(int u = size+2; u  < size*2; u++)
-		{
-			matrix->ur[myRow*size+u-size] = a(u, v, E2, size);
-			matrix->lr[myRow*size+u-size] = a(u, v+size, E2, size);
+			float tempE = E(E1, E2, myRow, el_no, size);
+			for(int u = el_no*2; u < el_no*2+4 && u < size; u++)
+			{
+				matrix->ul[myRow*size+u] += a(u, v, el_no, tempE, size);
+				matrix->ur[myRow*size+u] += a(u+size, v, el_no, tempE, size);
+				
+				matrix->ll[myRow*size+u] += a(u, v+size, el_no, tempE, size);
+				matrix->lr[myRow*size+u] += a(u+size, v+size, el_no, tempE, size);
+			}
+			matrix->ub[myRow] += A(v, el_no, tempE, size);
+			matrix->lb[myRow] += A(v+size, el_no, tempE, size);
+			
 		}
 	}
-	else
-	{
-		for(int u = 0; u < size; u++)
-		{
-			matrix->ul[myRow*size+u] = a(u, v, E, size);
-			matrix->ll[myRow*size+u] = a(u, v+size, E, size);
-		}
-		for(int u = size; u  < size*2; u++)
-		{
-			matrix->ur[myRow*size+u-size] = a(u, v, E, size);
-			matrix->lr[myRow*size+u-size] = a(u, v+size, E, size);
-		}
-	}
-
-	matrix->ub[myRow] = A(v, E, size);
-	matrix->lb[myRow] = A(v+size, E, size);*/
 }
 
 __global__ void copyUpperLeft(matrix* A, matrix* C){
