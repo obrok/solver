@@ -53,10 +53,10 @@ __device__ inline float get_derivative(int func_no, int el_no, int direction, in
 			return 0.5;
 }
 
-__device__ inline float get_e(int func_no, int el_no, int i, int size)
+__device__ inline float get_e(int func_no, float val, int el_no, int i, int size)
 {
-	float dx = get_derivative(func_no, el_no, 0, size);
-	float dy = get_derivative(func_no, el_no, 1, size);
+	float dx = get_derivative(func_no, el_no, 0, size) * val;
+	float dy = get_derivative(func_no, el_no, 1, size) * val;
 	if(i == 0) return dx * !(func_no & 1);
 	if(i == 1) return dy * (func_no & 1);
 	return dx * (func_no & 1) + dy * !(func_no & 1);
@@ -82,22 +82,32 @@ __device__ inline float get_alpha(int i)
 	return 2*base;
 }
 
-__device__ inline float a(int u, int v, int el_no, float E, int size)
+__device__ inline float a(int u, float u_val, int v, float v_val, int el_no, float E, int size)
 {
 	float temp = 0;
 	for(int i = 0; i < 3; i++)
 		for(int j = 0; j < 3; j++)
-			temp += get_e(u, el_no, i, size)*get_D(i,j,E)*get_e(v, el_no, j, size);
+			temp += get_e(u, u_val, el_no, i, size)*get_D(i,j,E)*get_e(v, v_val, el_no, j, size);
+	return temp;
+}
+
+__device__ inline float a(int u, int v, int el_no, float E, int size)
+{
+	return a(u, 1, v, 1, el_no, E, size);
+}
+
+__device__ inline float A(int v, float v_val, int el_no, float E, int size)
+{
+	float temp = 0;
+	for(int i = 0; i < 3; i++)
+		for(int j = 0; j < 3; j++)
+			temp += get_e(v, v_val, el_no, i, size)*get_D(i,j,E)*get_alpha(j);
 	return temp;
 }
 
 __device__ inline float A(int v, int el_no, float E, int size)
 {
-	float temp = 0;
-	for(int i = 0; i < 3; i++)
-		for(int j = 0; j < 3; j++)
-			temp += get_e(v, el_no, i, size)*get_D(i,j,E)*get_alpha(j);
-	return temp;
+	return A(v, 1, el_no, E, size);
 }
 
 __device__ inline float E(float E1, float E2, int row, int col, int size)
@@ -139,7 +149,6 @@ __global__ void fillInside(matrix* matrix, float E1, float E2, int size, int mat
 	matrix += idx()/size;
 	int myRow = idx()%size;
 	
-	
 	int v = myRow;
 	int v_loc = v/2;
 	
@@ -161,6 +170,38 @@ __global__ void fillInside(matrix* matrix, float E1, float E2, int size, int mat
 			
 		}
 	}
+}
+
+__global__ void calculateEnergy(matrix* matrix, float E1, float E2, float* value, float* target, int size, int matrix_no){
+	matrix += idx()/size;
+	int myRow = idx()%size;
+	value += idx()*size;
+	target += idx();
+	
+	int v = myRow;
+	int v_loc = v/2;
+	
+	float temp = 0;
+	
+	for(int el_no = v_loc - 1; el_no <= v_loc; el_no++)
+	{
+		if(el_no >= 0 && el_no < size/2 - 1)
+		{
+			float tempE = E(E1, E2, myRow, el_no, size);
+			for(int u = el_no*2; u < el_no*2+4 && u < size; u++)
+			{
+				temp += a(u, value[u], v, value[v], el_no, tempE, size);
+				temp += a(u+size, value[u+size], v, value[v], el_no, tempE, size);
+				
+				temp += a(u, value[u], v+size, value[v+size], el_no, tempE, size);
+				temp += a(u+size, value[u+size], v+size, value[v+size], el_no, tempE, size);
+			}
+			temp /= 2;
+			temp += A(v, value[v], el_no, tempE, size);
+			temp += A(v+size, value[v+size], el_no, tempE, size);
+		}
+	}
+	*target = temp;
 }
 
 __global__ void copyUpperLeft(matrix* A, matrix* C){
@@ -377,7 +418,7 @@ void printFloatArray(float *M, int size) {
 	int i,j;
 	for(i = 0; i < size; i++){
 		for(j = 0; j < size; j++) {
-			printf("% .02f ", M[i*size + j]);
+			printf("% .03f ", M[i*size + j]);
 		}
 		printf("\n");
 	}
@@ -396,6 +437,6 @@ void printDeviceVector(float* dVec, int len){
 void printHostVector(float* V, int len) {
 	int i;
 	for(i = 0; i < len; i++)
-		printf("% .02f ", V[i]);
+		printf("% .03f ", V[i]);
 	printf("\n\n");
 }

@@ -8,12 +8,19 @@
 
 void reduce(matrix* oldMatrices, int n, matrix* newMatrices, int size);
 void solve(matrix* matrices, int n, int size);
+int calculate(int _size, int _log);
 
-int main(){
-	int size = 4;
-	int log = 2;
+int main()
+{
+	for(int log = 1, int size = 2; size <= 64; log += 1, size *= 2)
+		calculate(size, log);
+}
+
+int calculate(int _size, int _log){
+	int size = _size;
+	int log = _log;
 	float E1 = 1;
-	float E2 = 1;
+	float E2 = 0.001;
 	int matrix_no = size;
 	size = (size+1)*2;
 	
@@ -30,13 +37,6 @@ int main(){
 	fillLeft<<<1, size>>>(matrices[0],  E1, size);
 	fillInside<<<matrix_no-1, size>>>(matrices[0]+1, E1, E2, size, matrix_no);
 	cudaThreadSynchronize();
-
-	
-	for(int i = 0; i < 4; i++)
-	{
-		printDeviceMatrix(matrices[0]+i, size);
-		std::cin.get();
-		}
 	
 	int i,j;
 	int n ;		
@@ -69,10 +69,7 @@ int main(){
 	gauss(&temp, size);
 	
 	cudaMemcpy(target, temp_data, sizeof(float) * matrix_size(size), cudaMemcpyHostToDevice);
-	cudaThreadSynchronize();	
-	
-	printHostMatrix(&temp, size);
-	printDeviceMatrix(matrices[log], size);
+	cudaThreadSynchronize();
 	
 	free(temp_data);
 
@@ -90,13 +87,30 @@ int main(){
 		cudaThreadSynchronize();
 	}
 	
-	float* results;
-	cudaMalloc((void**)&results, sizeof(float)*matrix_no*size);
+	float* values;
+	cudaMalloc((void**)&values, sizeof(float)*(matrix_no+1)*size);
 	cudaThreadSynchronize();
-	extractResults<<<1, matrix_no/2>>>(matrices[0], results, size);
-	cudaThreadSynchronize();	
+	extractResults<<<1, matrix_no/2>>>(matrices[0], values, size);
+	cudaThreadSynchronize();
 	
-	printDeviceVector(results, (matrix_no+1)*size);
+	float* contributions;
+	cudaMalloc((void**)&contributions, sizeof(float)*matrix_no*size);
+	calculateEnergy<<<matrix_no, size>>>(matrices[0], E1, E2, values, contributions, size, matrix_no);
+	
+	float* results = (float*)malloc(matrix_no*size*sizeof(float));
+	cudaMemcpy(results, contributions, matrix_no*size*sizeof(float), cudaMemcpyDeviceToHost);
+	float* disps = (float*)malloc((matrix_no+1)*size*sizeof(float));
+	cudaMemcpy(disps, values, (matrix_no+1)*size*sizeof(float), cudaMemcpyDeviceToHost);	
+	cudaThreadSynchronize();
+	
+	double energy = 0;
+	double mean = 0;
+	for(int i = 0; i < matrix_no*size; i++)
+	{
+		mean += disps[i];
+		energy += results[i];
+	}
+	std::cout << energy <<  " " << mean / matrix_no*size << "\n";
 	
 	for(int i =0; i < log+1; i++)
 	{
