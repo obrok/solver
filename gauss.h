@@ -1,0 +1,1 @@
+void gauss(matrix* m, int size);

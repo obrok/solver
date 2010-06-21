@@ -1,6 +1,6 @@
 all: japi 
-japi: main.obj solver.obj
-	nvcc -o japi -O2 main.obj solver.obj
+japi: main.obj solver.obj gauss.obj
+	nvcc -o japi -O2 main.obj solver.obj gauss.obj
 	./japi.exe
 
 main.obj: main.cu solver.h

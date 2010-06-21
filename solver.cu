@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <cuda.h>
 #include "solver.h"
+
 __device__ inline int idx(){
 	return blockDim.x*blockIdx.x+threadIdx.x;
 }

@@ -4,6 +4,7 @@
 #include <iostream>
 
 #include "solver.h"
+#include "gauss.h"
 
 void reduce(matrix* oldMatrices, int n, matrix* newMatrices, int size);
 void solve(matrix* matrices, int n, int size);
@@ -29,7 +30,14 @@ int main(){
 	fillLeft<<<1, size>>>(matrices[0],  E1, size);
 	fillInside<<<matrix_no-1, size>>>(matrices[0]+1, E1, E2, size, matrix_no);
 	cudaThreadSynchronize();
-		
+
+	
+	for(int i = 0; i < 4; i++)
+	{
+		printDeviceMatrix(matrices[0]+i, size);
+		std::cin.get();
+		}
+	
 	int i,j;
 	int n ;		
 	for(i = 0,n=matrix_no; i < log; i++,n/=2){		
@@ -43,9 +51,33 @@ int main(){
 		reduce(matrices[i], n, matrices[i+1], size);			
 	}
 	
+	matrix temp;
+	float* temp_data = (float*)malloc(matrix_size(size) * sizeof(float));
+	cudaMemcpy(&temp, matrices[log], sizeof(matrix), cudaMemcpyDeviceToHost);
+	cudaThreadSynchronize();
+	cudaMemcpy(temp_data, temp.ur, sizeof(float) * matrix_size(size), cudaMemcpyDeviceToHost);
+	float* target = temp.ur;
+	cudaThreadSynchronize();
+	
+	temp.ur = temp_data;
+	temp.ul = temp.ur + size*size;
+	temp.lr = temp.ul + size*size;
+	temp.ll = temp.lr + size*size;
+	temp.ub = temp.ll + size*size;
+	temp.lb = temp.ub + size;
+	
+	gauss(&temp, size);
+	
+	cudaMemcpy(target, temp_data, sizeof(float) * matrix_size(size), cudaMemcpyHostToDevice);
+	cudaThreadSynchronize();	
+	
+	printHostMatrix(&temp, size);
 	printDeviceMatrix(matrices[log], size);
+	
+	free(temp_data);
+
 		
-	for(i = log-1,n=2; i >= 0; i--,n*=2){
+	for(i = log,n=1; i >= 0; i--,n*=2){
 		solve(matrices[i], n, size);
 		if(i > 0)
 			for(j = 0; j < n; j+=2){
@@ -54,7 +86,7 @@ int main(){
 				copyBUpper<<<1, size>>>(matrices[i]+j, matrices[i]+j+1, matrices[i-1]+j*2+2, size);
 				copyBLower<<<1, size>>>(matrices[i]+j+1, matrices[i-1]+j*2+3);								
 			}
-		
+				
 		cudaThreadSynchronize();
 	}
 	
@@ -150,4 +182,8 @@ void solve(matrix* matrices, int n, int size){
 		cudaThreadSynchronize();
 	}
 	
+}
+
+void fix_top(matrix* matrix, int size)
+{
 }
