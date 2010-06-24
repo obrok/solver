@@ -12,15 +12,19 @@ int calculate(int _size, int _log);
 
 int main()
 {
-	for(int log = 1, int size = 2; size <= 64; log += 1, size *= 2)
-		calculate(size, log);
+	for(int i = 0; i < 1000; i++)
+	{
+		for(int log = 1, int size = 2; size <= 32; log += 1, size *= 2)
+			calculate(size, log);
+		std::cout << "iteration " << i << "\n";
+	}
 }
 
 int calculate(int _size, int _log){
 	int size = _size;
 	int log = _log;
 	float E1 = 2;
-	float E2 = 0.1;
+	float E2 = 3;
 	int matrix_no = size;
 	size = (size+1)*2;
 	
