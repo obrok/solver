@@ -102,7 +102,7 @@ __device__ inline float A(int v, float v_val, int el_no, float E, int size)
 	for(int i = 0; i < 3; i++)
 		for(int j = 0; j < 3; j++)
 			temp += get_e(v, v_val, el_no, i, size)*get_D(i,j,E)*get_alpha(j);
-	return temp;
+	return temp/(size/2-1);
 }
 
 __device__ inline float A(int v, int el_no, float E, int size)
@@ -112,9 +112,10 @@ __device__ inline float A(int v, int el_no, float E, int size)
 
 __device__ inline float E(float E1, float E2, int row, int col, int size)
 {
-	if (((float)row)/size >= 0.5 &&
-	    ((float)col)/size >= 0.25 &&
-		((float)col)/size <= 0.5)
+	size = size/2-1;
+	if (row >= size/4 
+		&& row < size/2
+		&& col >= size/2)
 		return E2;
 	else
 		return E1;
@@ -156,7 +157,7 @@ __global__ void fillInside(matrix* matrix, float E1, float E2, int size, int mat
 	{
 		if(el_no >= 0 && el_no < size/2 - 1)
 		{
-			float tempE = E(E1, E2, myRow, el_no, size);
+			float tempE = E(E1, E2, idx()/size, el_no, size);
 			for(int u = el_no*2; u < el_no*2+4 && u < size; u++)
 			{
 				matrix->ul[myRow*size+u] += a(u, v, el_no, tempE, size);
@@ -172,14 +173,12 @@ __global__ void fillInside(matrix* matrix, float E1, float E2, int size, int mat
 	}
 }
 
-__global__ void calculateEnergy(matrix* matrix, float E1, float E2, float* value, float* target, int size, int matrix_no){
-	matrix += idx()/size;
-	int myRow = idx()%size;
-	value += idx()*size;
+__global__ void calculateEnergy(float E1, float E2, float* value, float* target, int size){
+	value += idx()/size*size;
 	target += idx();
-	
-	int v = myRow;
+	int v = idx()%size;
 	int v_loc = v/2;
+	int square = (size/2-1)*(size/2-1);
 	
 	float temp = 0;
 	
@@ -187,16 +186,15 @@ __global__ void calculateEnergy(matrix* matrix, float E1, float E2, float* value
 	{
 		if(el_no >= 0 && el_no < size/2 - 1)
 		{
-			float tempE = E(E1, E2, myRow, el_no, size);
+			float tempE = E(E1, E2, idx()/size, el_no, size);
 			for(int u = el_no*2; u < el_no*2+4 && u < size; u++)
 			{
-				temp += a(u, value[u], v, value[v], el_no, tempE, size);
-				temp += a(u+size, value[u+size], v, value[v], el_no, tempE, size);
+				temp += a(u, value[u], v, value[v], el_no, tempE, size)/square;
+				temp += a(u+size, value[u+size], v, value[v], el_no, tempE, size)/square;
 				
-				temp += a(u, value[u], v+size, value[v+size], el_no, tempE, size);
-				temp += a(u+size, value[u+size], v+size, value[v+size], el_no, tempE, size);
+				temp += a(u, value[u], v+size, value[v+size], el_no, tempE, size)/square;
+				temp += a(u+size, value[u+size], v+size, value[v+size], el_no, tempE, size)/square;
 			}
-			temp /= 2;
 			temp += A(v, value[v], el_no, tempE, size);
 			temp += A(v+size, value[v+size], el_no, tempE, size);
 		}

@@ -56,7 +56,7 @@ __global__ void extractResults(matrix* A, float* target, int size);
 __global__ void init_matrices(matrix* A, float* data, int size);
 __global__ void init_vector(float* vec, int size);
 
-__global__ void calculateEnergy(matrix* matrix, float E1, float E2, float* value, float* target, int size, int matrix_no);
+__global__ void calculateEnergy(float E1, float E2, float* value, float* target, int size);
 
 void printDeviceMatrix(matrix* deviceMatrix, int size);
 void printHostMatrix(matrix* hostMatrix, int size);

@@ -19,8 +19,8 @@ int main()
 int calculate(int _size, int _log){
 	int size = _size;
 	int log = _log;
-	float E1 = 1;
-	float E2 = 0.001;
+	float E1 = 2;
+	float E2 = 0.1;
 	int matrix_no = size;
 	size = (size+1)*2;
 	
@@ -67,15 +67,32 @@ int calculate(int _size, int _log){
 	temp.lb = temp.ub + size;
 	
 	gauss(&temp, size);
+	double sum_of_stuff = 0;
+	for(int i = 1; i < size; i+=2)
+		sum_of_stuff += temp.lb[i];
+	std::cout << sum_of_stuff/size << " ";
 	
 	cudaMemcpy(target, temp_data, sizeof(float) * matrix_size(size), cudaMemcpyHostToDevice);
 	cudaThreadSynchronize();
 	
+	matrix top_left, top_right;
+	cudaMemcpy(&top_left, matrices[log-1], sizeof(matrix), cudaMemcpyDeviceToHost);
+	cudaMemcpy(&top_right, matrices[log-1]+1, sizeof(matrix), cudaMemcpyDeviceToHost);
+	cudaThreadSynchronize();
+	cudaMemcpy(top_left.ul, temp.ul, sizeof(float) * size * size, cudaMemcpyHostToDevice);
+	cudaMemcpy(top_left.ur, temp.ur, sizeof(float) * size * size, cudaMemcpyHostToDevice);	
+	cudaMemcpy(top_left.ub, temp.ub, sizeof(float) * size, cudaMemcpyHostToDevice);
+	cudaMemcpy(top_right.ll, temp.ll, sizeof(float) * size * size, cudaMemcpyHostToDevice);
+	cudaMemcpy(top_right.lr, temp.lr, sizeof(float) * size * size, cudaMemcpyHostToDevice);	
+	cudaMemcpy(top_right.lb, temp.lb, sizeof(float) * size, cudaMemcpyHostToDevice);
+	cudaThreadSynchronize();
+	
 	free(temp_data);
-
+	
 		
-	for(i = log,n=1; i >= 0; i--,n*=2){
+	for(i = log-1,n=2; i >= 0; i--,n*=2){
 		solve(matrices[i], n, size);
+
 		if(i > 0)
 			for(j = 0; j < n; j+=2){
 				copyBUpper<<<1, size>>>(matrices[i]+j, matrices[i-1]+j*2);
@@ -92,25 +109,27 @@ int calculate(int _size, int _log){
 	cudaThreadSynchronize();
 	extractResults<<<1, matrix_no/2>>>(matrices[0], values, size);
 	cudaThreadSynchronize();
-	
-	float* contributions;
-	cudaMalloc((void**)&contributions, sizeof(float)*matrix_no*size);
-	calculateEnergy<<<matrix_no, size>>>(matrices[0], E1, E2, values, contributions, size, matrix_no);
-	
-	float* results = (float*)malloc(matrix_no*size*sizeof(float));
-	cudaMemcpy(results, contributions, matrix_no*size*sizeof(float), cudaMemcpyDeviceToHost);
 	float* disps = (float*)malloc((matrix_no+1)*size*sizeof(float));
 	cudaMemcpy(disps, values, (matrix_no+1)*size*sizeof(float), cudaMemcpyDeviceToHost);	
 	cudaThreadSynchronize();
 	
+	float* contributions;
+	cudaMalloc((void**)&contributions, sizeof(float)*matrix_no*size);
+	calculateEnergy<<<matrix_no, size>>>(E1, E2, values, contributions, size);
+	cudaThreadSynchronize();
+	
+	float* results = (float*)malloc(matrix_no*size*sizeof(float));
+	cudaMemcpy(results, contributions, matrix_no*size*sizeof(float), cudaMemcpyDeviceToHost);
+	cudaThreadSynchronize();
+	
 	double energy = 0;
 	double mean = 0;
-	for(int i = 0; i < matrix_no*size; i++)
+	for(int i = 0; i < matrix_no*size; i+= 1)
 	{
 		mean += disps[i];
 		energy += results[i];
 	}
-	std::cout << energy <<  " " << mean / matrix_no*size << "\n";
+	std::cout << energy <<  " " << mean /(matrix_no*size) << "\n";
 	
 	for(int i =0; i < log+1; i++)
 	{
