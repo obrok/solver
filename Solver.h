@@ -22,8 +22,9 @@ __global__ void copyLowerRight(matrix* B, matrix* C);
 __global__ void copyBUpper(matrix* A, matrix* C);
 __global__ void copyBLower(matrix* B, matrix* C);
 
-__global__ void fillInside(matrix* insideMatrices, float E1, float E2, int size, int matrix_no);
-__global__ void fillLeft(matrix* leftMatrix, float E1, int size);
+__global__ void fillInside(matrix* insideMatrices, int size);
+__global__ void fillLeft(matrix* leftMatrix, int size);
+__global__ void fillRight(matrix* leftMatrix, int size);
 
 __global__ void countCoeffsUpper(float* dElement, matrix* A, int col, float* coeffs, int size);
 __global__ void countCoeffsLower(float* dElement, matrix* B, int col, float* coeffs, int size);

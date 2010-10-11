@@ -10,17 +10,81 @@ __host__ __device__ int matrix_size(int size) {
 	return 4*size*size + 2*size;
 }
 
+__global__ void fillInside(matrix* insideMatrices, int size){
+	matrix* myMatrix = insideMatrices+(idx()/(2*size));
+	int myRow = idx()%(2*size);
+
+	if (myRow == 0 || myRow == size-1){
+		myMatrix->ul[myRow*size+myRow] = 0.5;
+		myMatrix->ub[myRow] = 10.0/(size-1)*(idx()/(2*size)+1);
+	}else if (myRow == size || myRow == 2*size-1){
+		myRow -= size;
+		myMatrix->lr[myRow*size+myRow] = 0.5;
+		myMatrix->lb[myRow] = 10.0/(size-1)*(idx()/(2*size)+2);
+	}else if(myRow < size){
+		myMatrix->ul[myRow*size+myRow] = -2.0;
+		myMatrix->ul[myRow*size+myRow-1] = (float)1/2;
+		myMatrix->ul[myRow*size+myRow+1] = (float)1/2;
+		myMatrix->ur[myRow*size+myRow] = 1;
+	}else{
+		myRow -= size;
+		myMatrix->lr[myRow*size+myRow] = -2.0;
+		myMatrix->lr[myRow*size+myRow-1] = (float)1/2;
+		myMatrix->lr[myRow*size+myRow+1] = (float)1/2;
+		myMatrix->ll[myRow*size+myRow] = 1;
+	}
+}
+
+__global__ void fillLeft(matrix* leftMatrix, int size){
+	int myRow = idx()%(2*size);
+
+	if(myRow < size){
+		leftMatrix->ul[myRow*size+myRow] = 1;
+		leftMatrix->ub[myRow] = 0;
+	}
+	else if(myRow == size || myRow == 2*size-1){
+		myRow -= size;
+		leftMatrix->lr[myRow*size+myRow] = 0.5;
+		leftMatrix->lb[myRow] = 10.0/(size-1);
+	}else{
+		myRow -= size;
+		leftMatrix->lr[myRow*size+myRow] = -2.0;
+		leftMatrix->lr[myRow*size+myRow-1] = 0.5;
+		leftMatrix->lr[myRow*size+myRow+1] = 0.5;
+		leftMatrix->ll[myRow*size+myRow] = 1;
+	}
+}
+
+__global__ void fillRight(matrix* rightMatrix, int size){
+	int myRow = idx()%(2*size);
+
+	if(myRow >= size){
+		myRow -= size;
+		rightMatrix->lr[myRow*size+myRow] = 1;
+		rightMatrix->lb[myRow] = 20;
+	}
+	else if(myRow == 0 || myRow == size-1){
+		rightMatrix->ul[myRow*size+myRow] = 0.5;
+		rightMatrix->ub[myRow] = 10.0/(size-1)*(size-2);
+	}else{
+		rightMatrix->ul[myRow*size+myRow] = -2.0;
+		rightMatrix->ul[myRow*size+myRow-1] = 0.5;
+		rightMatrix->ul[myRow*size+myRow+1] = 0.5;
+		rightMatrix->ur[myRow*size+myRow] = 1;
+	}
+}
+
 __global__ void init_matrices(matrix* A, float* data, int size){
 	A = A + idx();
 	data = data + idx()*matrix_size(size);
-	
+
 	A->ur = data;
 	A->ul = A->ur + size * size;
 	A->lr = A->ul + size * size;
 	A->ll = A->lr + size * size;
 	A->ub = A->ll + size * size;
 	A->lb = A->ub + size;
-	
+
 	for(int i = 0; i < size; i++) {
 		for(int j = 0; j < size; j++) {
 			A->ll[i*size + j] = 0;
@@ -32,174 +96,11 @@ __global__ void init_matrices(matrix* A, float* data, int size){
 		A->lb[i] = 0;
 	}
 }
+
 __global__ void init_vector(float* vec, int size){
 	vec = vec + idx()*size;
 	for(int i = 0; i < size; i++) 
 		vec[i] = 0;
-}
-
-__device__ inline float get_derivative(int func_no, int el_no, int direction, int size)
-{
-	int location = func_no/2;
-	if(direction == 0)
-		if (location == el_no + 1 || location == el_no + size/2 + 1)
-			return 0.5;
-		else
-			return -0.5;
-	else
-		if (location < size/2)
-			return -0.5;
-		else
-			return 0.5;
-}
-
-__device__ inline float get_e(int func_no, float val, int el_no, int i, int size)
-{
-	float dx = get_derivative(func_no, el_no, 0, size) * val;
-	float dy = get_derivative(func_no, el_no, 1, size) * val;
-	if(i == 0) return dx * !(func_no & 1);
-	if(i == 1) return dy * (func_no & 1);
-	return dx * (func_no & 1) + dy * !(func_no & 1);
-}
-
-__device__ inline float get_D(int i, int j, float E)
-{
-	float ni = 0.3;
-	float mi = E/(2*(1+ni));
-	float lambda = ni*E/(1+ni)/(1-2*ni);
-	
-	if(i == 2 && j == 2) return mi;
-	else if(i > 1 || j > 1) return 0;
-	else if(i == j) return lambda + 2*mi;
-	else return lambda;
-}
-
-__device__ inline float get_alpha(int i)
-{
-	float base = -0.06115;
-	if(i == 0) return base;
-	if(i == 1) return 0;
-	return 2*base;
-}
-
-__device__ inline float a(int u, float u_val, int v, float v_val, int el_no, float E, int size)
-{
-	float temp = 0;
-	for(int i = 0; i < 3; i++)
-		for(int j = 0; j < 3; j++)
-			temp += get_e(u, u_val, el_no, i, size)*get_D(i,j,E)*get_e(v, v_val, el_no, j, size);
-	return temp;
-}
-
-__device__ inline float a(int u, int v, int el_no, float E, int size)
-{
-	return a(u, 1, v, 1, el_no, E, size);
-}
-
-__device__ inline float A(int v, float v_val, int el_no, float E, int size)
-{
-	float temp = 0;
-	for(int i = 0; i < 3; i++)
-		for(int j = 0; j < 3; j++)
-			temp += get_e(v, v_val, el_no, i, size)*get_D(i,j,E)*get_alpha(j);
-	return temp/(size/2-1);
-}
-
-__device__ inline float A(int v, int el_no, float E, int size)
-{
-	return A(v, 1, el_no, E, size);
-}
-
-__device__ inline float E(float E1, float E2, int row, int col, int size)
-{
-	size = size/2-1;
-	if (row >= size/4 
-		&& row < size/2
-		&& col >= size/2)
-		return E2;
-	else
-		return E1;
-}
-
-
-__global__ void fillLeft(matrix* leftMatrix, float E, int size){
-	// Need solve top!!1
-	int myRow = idx()%size;
-	
-	leftMatrix->ul[myRow*size+myRow] = 1;
-	leftMatrix->ub[myRow] = 0;
-
-	int v = myRow;
-	int v_loc = v/2;
-	
-	for(int el_no = v_loc - 1; el_no <= v_loc; el_no++)
-	{
-		if(el_no >= 0 && el_no < size/2 - 1)
-		{
-			for(int u = el_no*2; u < el_no*2+4 && u < size; u++)
-			{
-				leftMatrix->ll[myRow*size+u] += a(u, v+size, el_no, E, size);
-				leftMatrix->lr[myRow*size+u] += a(u+size, v+size, el_no, E, size);
-			}
-			leftMatrix->lb[myRow] += A(v+size, el_no, E, size);
-		}
-	}
-}
-
-__global__ void fillInside(matrix* matrix, float E1, float E2, int size, int matrix_no){
-	matrix += idx()/size;
-	int myRow = idx()%size;
-	
-	int v = myRow;
-	int v_loc = v/2;
-	
-	for(int el_no = v_loc - 1; el_no <= v_loc; el_no++)
-	{
-		if(el_no >= 0 && el_no < size/2 - 1)
-		{
-			float tempE = E(E1, E2, idx()/size, el_no, size);
-			for(int u = el_no*2; u < el_no*2+4 && u < size; u++)
-			{
-				matrix->ul[myRow*size+u] += a(u, v, el_no, tempE, size);
-				matrix->ur[myRow*size+u] += a(u+size, v, el_no, tempE, size);
-				
-				matrix->ll[myRow*size+u] += a(u, v+size, el_no, tempE, size);
-				matrix->lr[myRow*size+u] += a(u+size, v+size, el_no, tempE, size);
-			}
-			matrix->ub[myRow] += A(v, el_no, tempE, size);
-			matrix->lb[myRow] += A(v+size, el_no, tempE, size);
-			
-		}
-	}
-}
-
-__global__ void calculateEnergy(float E1, float E2, float* value, float* target, int size){
-	value += idx()/size*size;
-	target += idx();
-	int v = idx()%size;
-	int v_loc = v/2;
-	int square = (size/2-1)*(size/2-1);
-	
-	float temp = 0;
-	
-	for(int el_no = v_loc - 1; el_no <= v_loc; el_no++)
-	{
-		if(el_no >= 0 && el_no < size/2 - 1)
-		{
-			float tempE = E(E1, E2, idx()/size, el_no, size);
-			for(int u = el_no*2; u < el_no*2+4 && u < size; u++)
-			{
-				temp += a(u, value[u], v, value[v], el_no, tempE, size)/square;
-				temp += a(u+size, value[u+size], v, value[v], el_no, tempE, size)/square;
-				
-				temp += a(u, value[u], v+size, value[v+size], el_no, tempE, size)/square;
-				temp += a(u+size, value[u+size], v+size, value[v+size], el_no, tempE, size)/square;
-			}
-			temp += A(v, value[v], el_no, tempE, size);
-			temp += A(v+size, value[v+size], el_no, tempE, size);
-		}
-	}
-	*target = temp;
 }
 
 __global__ void copyUpperLeft(matrix* A, matrix* C){
