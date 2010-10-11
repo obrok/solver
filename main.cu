@@ -15,37 +15,39 @@ int main()
 	calculate(4, 2);
 }
 
-int calculate(int _size, int _log){
-	int size = _size;
-	int log = _log;
-	int matrix_no = size;
-	size = size + 1;
-	
-	matrix** matrices = (matrix**)malloc(sizeof(matrix*)*(log + 1));
-	float** data = (float**)malloc(sizeof(float*)*(log + 1));
-
+void allocate_tree(matrix** matrices, float** datas, int matrix_no, int size, int log)
+{	
 	cudaMalloc((void**)&(matrices[0]), sizeof(matrix)*matrix_no);
-	cudaMalloc((void**)&(data[0]), matrix_no*sizeof(float)*matrix_size(size));
+	cudaMalloc((void**)&(datas[0]), matrix_no*sizeof(float)*matrix_size(size));
 	cudaThreadSynchronize();
 	
-	init_matrices<<<matrix_no, 1>>>(matrices[0], data[0], size);
+	init_matrices<<<matrix_no, 1>>>(matrices[0], datas[0], size);
 	cudaThreadSynchronize();
 	
-	fillLeft<<<1, 2*size>>>(matrices[0],  size);
-	fillInside<<<matrix_no-2, 2*size>>>(matrices[0]+1, size);
-	fillRight<<<1, 2*size>>>(matrices[0]+matrix_no-1, size);
-	cudaThreadSynchronize();
-	
-	int i,j;
-	int n ;		
-	for(i = 0,n=matrix_no; i < log; i++,n/=2){		
+	for(int i = 0, n = matrix_no; i < log; i++,n/=2)
+	{
 		cudaMalloc((void**)&matrices[i+1], sizeof(matrix)*n/2);
-		cudaMalloc((void**)&data[i+1], sizeof(float)*matrix_size(size)*n/2);
+		cudaMalloc((void**)&datas[i+1], sizeof(float)*matrix_size(size)*n/2);
 		cudaThreadSynchronize();
 		
-		init_matrices<<<n/2, 1>>>(matrices[i+1], data[i + 1], size);
+		init_matrices<<<n/2, 1>>>(matrices[i+1], datas[i + 1], size);
 		cudaThreadSynchronize();
-			
+	}
+}
+
+void fill_tree(matrix* bottom_level, int matrix_no, int size)
+{
+	fillLeft<<<1, 2*size>>>(bottom_level,  size);
+	fillInside<<<matrix_no-2, 2*size>>>(bottom_level + 1, size);
+	fillRight<<<1, 2*size>>>(bottom_level+matrix_no-1, size);
+	cudaThreadSynchronize();
+}
+
+void solve_tree(matrix** matrices, int matrix_no, int size, int log)
+{
+	int i,j;
+	int n ;		
+	for(i = 0,n=matrix_no; i < log; i++,n/=2){
 		reduce(matrices[i], n, matrices[i+1], size);			
 	}
 	
@@ -96,12 +98,29 @@ int calculate(int _size, int _log){
 				
 		cudaThreadSynchronize();
 	}
+}
+
+int calculate(int _size, int _log){
+	int size = _size;
+	int log = _log;
+	int matrix_no = size;
+	size = size + 1;
 	
+	matrix** matrices = (matrix**)malloc(sizeof(matrix*)*(log + 1));
+	float** data = (float**)malloc(sizeof(float*)*(log + 1));
+	
+	allocate_tree(matrices, data, matrix_no, size, log);
+	
+	fill_tree(matrices[0], matrix_no, size);
+	
+	solve_tree(matrices, matrix_no, size, log);
+		
 	float* values;
 	cudaMalloc((void**)&values, sizeof(float)*(matrix_no+1)*size);
 	cudaThreadSynchronize();
 	extractResults<<<1, matrix_no/2>>>(matrices[0], values, size);
 	cudaThreadSynchronize();
+	
 	
 	printDeviceVector(values, (matrix_no+1)*size);
 	
