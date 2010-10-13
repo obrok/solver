@@ -10,17 +10,20 @@ __host__ __device__ int matrix_size(int size) {
 	return 4*size*size + 2*size;
 }
 
-__global__ void fillInside(matrix* insideMatrices, int size){
+__global__ void fillInside(matrix* insideMatrices, int size, int border_parts, float border_begin, float border_end){
 	matrix* myMatrix = insideMatrices+(idx()/(2*size));
 	int myRow = idx()%(2*size);
+	float spread = (border_end - border_begin);
+	int add = 0;
+	if(border_begin == 0) add = 1;
 
 	if (myRow == 0 || myRow == size-1){
 		myMatrix->ul[myRow*size+myRow] = 0.5;
-		myMatrix->ub[myRow] = 10.0/(size-1)*(idx()/(2*size)+1);
+		myMatrix->ub[myRow] = (border_begin + spread/(border_parts)*(idx()/(2*size)+add))/2;
 	}else if (myRow == size || myRow == 2*size-1){
 		myRow -= size;
 		myMatrix->lr[myRow*size+myRow] = 0.5;
-		myMatrix->lb[myRow] = 10.0/(size-1)*(idx()/(2*size)+2);
+		myMatrix->lb[myRow] = (border_begin + spread/(border_parts)*(idx()/(2*size)+add+1))/2;
 	}else if(myRow < size){
 		myMatrix->ul[myRow*size+myRow] = -2.0;
 		myMatrix->ul[myRow*size+myRow-1] = (float)1/2;
@@ -35,9 +38,10 @@ __global__ void fillInside(matrix* insideMatrices, int size){
 	}
 }
 
-__global__ void fillLeft(matrix* leftMatrix, int size){
+__global__ void fillLeft(matrix* leftMatrix, int size, int border_parts, float border_begin, float border_end){
 	int myRow = idx()%(2*size);
-
+	float spread = (border_end - border_begin);
+	
 	if(myRow < size){
 		leftMatrix->ul[myRow*size+myRow] = 1;
 		leftMatrix->ub[myRow] = 0;
@@ -45,7 +49,7 @@ __global__ void fillLeft(matrix* leftMatrix, int size){
 	else if(myRow == size || myRow == 2*size-1){
 		myRow -= size;
 		leftMatrix->lr[myRow*size+myRow] = 0.5;
-		leftMatrix->lb[myRow] = 10.0/(size-1);
+		leftMatrix->lb[myRow] = (border_begin + spread/(border_parts))/2;
 	}else{
 		myRow -= size;
 		leftMatrix->lr[myRow*size+myRow] = -2.0;
@@ -55,9 +59,10 @@ __global__ void fillLeft(matrix* leftMatrix, int size){
 	}
 }
 
-__global__ void fillRight(matrix* rightMatrix, int size){
+__global__ void fillRight(matrix* rightMatrix, int size, int border_parts, float border_begin, float border_end){
 	int myRow = idx()%(2*size);
-
+	float spread = (border_end - border_begin);
+	
 	if(myRow >= size){
 		myRow -= size;
 		rightMatrix->lr[myRow*size+myRow] = 1;
@@ -65,7 +70,7 @@ __global__ void fillRight(matrix* rightMatrix, int size){
 	}
 	else if(myRow == 0 || myRow == size-1){
 		rightMatrix->ul[myRow*size+myRow] = 0.5;
-		rightMatrix->ub[myRow] = 10.0/(size-1)*(size-2);
+		rightMatrix->ub[myRow] = (border_end - spread/(border_parts))/2;
 	}else{
 		rightMatrix->ul[myRow*size+myRow] = -2.0;
 		rightMatrix->ul[myRow*size+myRow-1] = 0.5;
@@ -276,6 +281,18 @@ __global__ void copyBLower(matrix* A, matrix* B, matrix* C, int size) {
 __global__ void copyBUpper(matrix* A, matrix* B, matrix* C, int size) {
 	int index = idx();
 	C->ub[index] = (A->lb[index] + B->ub[index])/(A->lr[index*(size+1)] + B->ul[index*(size+1)]);
+}
+
+__global__ void divideBLower(matrix* A, int size)
+{
+	int index = idx();
+	A->lb[index] /= A->lr[index*(size+1)];
+}
+
+__global__ void divideBUpper(matrix* A, int size)
+{
+	int index = idx();
+	A->ub[index] /= A->ul[index*(size+1)];
 }
 
 void printDeviceMatrix(matrix* deviceMatrix, int size){

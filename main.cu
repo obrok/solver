@@ -46,24 +46,30 @@ void free_tree(matrix** matrices, float** datas, int matrix_no, int size, int lo
 	cudaThreadSynchronize();
 }
 
-void fill_tree(matrix* bottom_level, int matrix_no, int size, bool left_open, bool right_open)
+void fill_tree(matrix* bottom_level, int matrix_no, int size, int chunkNo)
 {
+	float border_begin = 20.0/matrix_no*chunkNo;
+	float border_end = 20.0/matrix_no*(chunkNo+1);
+	
+	bool left_open = chunkNo != 0;
+	bool right_open = chunkNo != matrix_no - 1;
+	
 	if(left_open)
 	{
-		fillInside<<<1, 2*size>>>(bottom_level,  size);
+		fillInside<<<1, 2*size>>>(bottom_level,  size, matrix_no, border_begin, border_end);
 	}
 	else
 	{
-		fillLeft<<<1, 2*size>>>(bottom_level,  size);		
+		fillLeft<<<1, 2*size>>>(bottom_level,  size, matrix_no, border_begin, border_end);		
 	}
-	fillInside<<<matrix_no-2, 2*size>>>(bottom_level + 1, size);
+	fillInside<<<matrix_no-2, 2*size>>>(bottom_level + 1, size, matrix_no, border_begin, border_end);
 	if(right_open)
 	{
-		fillInside<<<1, 2*size>>>(bottom_level+matrix_no-1, size);
+		fillInside<<<1, 2*size>>>(bottom_level+matrix_no-1, size, matrix_no, border_begin, border_end);
 	}
 	else
 	{
-		fillRight<<<1, 2*size>>>(bottom_level+matrix_no-1, size);
+		fillRight<<<1, 2*size>>>(bottom_level+matrix_no-1, size, matrix_no, border_begin, border_end);
 	}
 	cudaThreadSynchronize();
 }
@@ -114,11 +120,21 @@ void solve_top(matrix** matrices, int matrix_no, int size, int log)
 	free(temp_data);
 }
 
-void solve_down(matrix** matrices, int matrix_no, int size, int log)
-{			
-	for(int i = log-1,n=2; i >= 0; i--,n*=2){
-		solve(matrices[i], n, size);
+void solve_down(matrix** matrices, int matrix_no, int size, int log, bool copy_first)
+{
+	if(copy_first)
+	{
+		divideBLower<<<1, size>>>(matrices[log], size);
+		divideBUpper<<<1, size>>>(matrices[log], size);
+		cudaThreadSynchronize();
+		copyBUpper<<<1, size>>>(matrices[log], matrices[log-1]);
+		copyBLower<<<1, size>>>(matrices[log], matrices[log-1]+1);
+		cudaThreadSynchronize();
+	}
 
+	for(int i = log-1,n=2; i >= 0 ; i--,n*=2){
+		solve(matrices[i], n, size);				
+		
 		if(i > 0)
 			for(int j = 0; j < n; j+=2){
 				copyBUpper<<<1, size>>>(matrices[i]+j, matrices[i-1]+j*2);
@@ -150,10 +166,10 @@ int calculate(int _size, int _log){
 	float** data = (float**)malloc(sizeof(float*)*(log + 1));
 	
 	for(int i = 0; i < matrix_no; i++)
-	{
+	{	
 		allocate_tree(matrices, data, matrix_no, size, log);
 	
-		fill_tree(matrices[0], matrix_no, size, i != 0, i != matrix_no - 1);
+		fill_tree(matrices[0], matrix_no, size, i);	
 	
 		solve_up(matrices, matrix_no, size, log);
 		
@@ -161,24 +177,18 @@ int calculate(int _size, int _log){
 		cudaThreadSynchronize();
 		
 		free_tree(matrices, data, matrix_no, size, log);
-	}
-	
-	printDeviceVector(carry, matrix_no*matrix_size(size));
-	
+	}		
 	allocate_tree(matrices, data, matrix_no, size, log);
 	
 	cudaMemcpy(data[0], carry, sizeof(float) * matrix_no * matrix_size(size), cudaMemcpyDeviceToDevice);
 	cudaThreadSynchronize();
 	
-	printDeviceMatrix(matrices[0], size);
-	printDeviceMatrix(matrices[0]+1, size);
-	
 	solve_up(matrices, matrix_no, size, log);
 	
 	solve_top(matrices, matrix_no, size, log);
 	
-	solve_down(matrices, matrix_no, size, log);
-
+	solve_down(matrices, matrix_no, size, log, 0);
+	
 	cudaMemcpy(carry, data[0], sizeof(float) * matrix_no * matrix_size(size), cudaMemcpyDeviceToDevice);
 	cudaThreadSynchronize();
 	
@@ -188,12 +198,14 @@ int calculate(int _size, int _log){
 	{
 		allocate_tree(matrices, data, matrix_no, size, log);
 	
-		fill_tree(matrices[0], matrix_no, size, i != 0, i != matrix_no - 1);
+		fill_tree(matrices[0], matrix_no, size, i);
 	
 		solve_up(matrices, matrix_no, size, log);
 		
 		cudaMemcpy(data[log], carry + i*matrix_size(size), sizeof(float) * matrix_size(size), cudaMemcpyDeviceToDevice);
 		cudaThreadSynchronize();
+		
+		solve_down(matrices, matrix_no, size, log, 1);
 		
 		float* values;
 		cudaMalloc((void**)&values, sizeof(float)*(matrix_no+1)*size);
@@ -205,13 +217,6 @@ int calculate(int _size, int _log){
 		
 		free_tree(matrices, data, matrix_no, size, log);
 	}
-	float* values;
-	cudaMalloc((void**)&values, sizeof(float)*(matrix_no+1)*size);
-	cudaThreadSynchronize();
-	extractResults<<<1, matrix_no/2>>>(matrices[0], values, size);
-	cudaThreadSynchronize();
-	
-	free_tree(matrices, data, matrix_no, size, log);
 	
 	return 0;
 }

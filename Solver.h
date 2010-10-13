@@ -22,9 +22,9 @@ __global__ void copyLowerRight(matrix* B, matrix* C);
 __global__ void copyBUpper(matrix* A, matrix* C);
 __global__ void copyBLower(matrix* B, matrix* C);
 
-__global__ void fillInside(matrix* insideMatrices, int size);
-__global__ void fillLeft(matrix* leftMatrix, int size);
-__global__ void fillRight(matrix* leftMatrix, int size);
+__global__ void fillInside(matrix* insideMatrices, int size, int border_parts, float border_begin, float border_end);
+__global__ void fillLeft(matrix* leftMatrix, int size, int border_parts, float border_begin, float border_end);
+__global__ void fillRight(matrix* leftMatrix, int size, int border_parts, float border_begin, float border_end);
 
 __global__ void countCoeffsUpper(float* dElement, matrix* A, int col, float* coeffs, int size);
 __global__ void countCoeffsLower(float* dElement, matrix* B, int col, float* coeffs, int size);
@@ -49,6 +49,9 @@ __global__ void updateBUpper(int row, matrix* A, matrix* B, matrix* C, float* co
 __global__ void backwardsSubstitutionRight(int col, matrix* A, matrix* B, int size);
 __global__ void backwardsSubstitutionLeft(int col, matrix* A, matrix* B, int size);
 __global__ void backwardsSubstitutionCenter(int col, matrix* A, matrix* B, int size);
+
+__global__ void divideBLower(matrix* A, int size);
+__global__ void divideBUpper(matrix* A, int size);
 
 __global__ void copyBLower(matrix* A, matrix* B, matrix* C, int size);
 __global__ void copyBUpper(matrix* A, matrix* B, matrix* C, int size);
