@@ -12,7 +12,7 @@ int calculate(int _size, int _log);
 
 int main()
 {
-	calculate(4, 2);		
+	calculate(16, 4);		
 }
 
 void allocate_tree(matrix** matrices, float** datas, int matrix_no, int size, int log)
@@ -51,23 +51,17 @@ void fill_tree(matrix* bottom_level, int matrix_no, int size, int chunkNo)
 	float border_begin = 20.0/matrix_no*chunkNo;
 	float border_end = 20.0/matrix_no*(chunkNo+1);
 	
+	std::cout << border_begin << " " << border_end << "\n";
+	
 	bool left_open = chunkNo != 0;
 	bool right_open = chunkNo != matrix_no - 1;
 	
-	if(left_open)
-	{
-		fillInside<<<1, 2*size>>>(bottom_level,  size, matrix_no, border_begin, border_end);
-	}
-	else
+	if(!left_open)
 	{
 		fillLeft<<<1, 2*size>>>(bottom_level,  size, matrix_no, border_begin, border_end);		
 	}
-	fillInside<<<matrix_no-2, 2*size>>>(bottom_level + 1, size, matrix_no, border_begin, border_end);
-	if(right_open)
-	{
-		fillInside<<<1, 2*size>>>(bottom_level+matrix_no-1, size, matrix_no, border_begin, border_end);
-	}
-	else
+	fillInside<<<matrix_no-2+left_open + right_open, 2*size>>>(bottom_level + !left_open, size, matrix_no, border_begin, border_end);
+	if(!right_open)
 	{
 		fillRight<<<1, 2*size>>>(bottom_level+matrix_no-1, size, matrix_no, border_begin, border_end);
 	}
@@ -170,7 +164,7 @@ int calculate(int _size, int _log){
 		allocate_tree(matrices, data, matrix_no, size, log);
 	
 		fill_tree(matrices[0], matrix_no, size, i);	
-	
+		
 		solve_up(matrices, matrix_no, size, log);
 		
 		cudaMemcpy(carry + i*matrix_size(size), data[log], sizeof(float) * matrix_size(size), cudaMemcpyDeviceToDevice);

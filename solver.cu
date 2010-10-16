@@ -14,8 +14,7 @@ __global__ void fillInside(matrix* insideMatrices, int size, int border_parts, f
 	matrix* myMatrix = insideMatrices+(idx()/(2*size));
 	int myRow = idx()%(2*size);
 	float spread = (border_end - border_begin);
-	int add = 0;
-	if(border_begin == 0) add = 1;
+	int add = border_begin == 0;
 
 	if (myRow == 0 || myRow == size-1){
 		myMatrix->ul[myRow*size+myRow] = 0.5;
